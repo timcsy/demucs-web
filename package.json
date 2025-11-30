@@ -1,0 +1,45 @@
+{
+  "name": "demucs-web",
+  "version": "1.0.0",
+  "description": "Music source separation (Demucs) running in browser with ONNX Runtime Web",
+  "type": "module",
+  "main": "src/index.js",
+  "module": "src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./processor": "./src/processor.js",
+    "./fft": "./src/fft.js",
+    "./constants": "./src/constants.js"
+  },
+  "files": [
+    "src/",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "demo": "python3 -m http.server 8080"
+  },
+  "keywords": [
+    "demucs",
+    "music",
+    "audio",
+    "source-separation",
+    "stem-separation",
+    "onnx",
+    "webgpu",
+    "wasm",
+    "browser"
+  ],
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": ""
+  },
+  "peerDependencies": {
+    "onnxruntime-web": ">=1.17.0"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}
