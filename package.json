@@ -1,6 +1,6 @@
 {
   "name": "demucs-web",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Music source separation (Demucs) running in browser with ONNX Runtime Web",
   "type": "module",
   "main": "src/index.js",

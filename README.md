@@ -102,8 +102,15 @@ hf auth login
 interface DemucsProcessorOptions {
   ort: typeof import('onnxruntime-web');
   modelPath?: string;
-  onProgress?: (progress: number) => void;
+  onProgress?: (info: ProgressInfo) => void;
   onLog?: (phase: string, message: string) => void;
+  onDownloadProgress?: (loaded: number, total: number) => void;
+}
+
+interface ProgressInfo {
+  progress: number;        // 0-1 之間的進度值
+  currentSegment: number;  // 目前處理的區段編號
+  totalSegments: number;   // 總區段數量
 }
 
 class DemucsProcessor {
@@ -118,6 +125,144 @@ interface SeparationResult {
   other: { left: Float32Array; right: Float32Array };
   vocals: { left: Float32Array; right: Float32Array };
 }
+```
+
+### 回呼函數詳細說明
+
+#### onProgress - 處理進度回呼
+
+在音訊分離過程中，每完成一個區段會觸發此回呼：
+
+```javascript
+const processor = new DemucsProcessor({
+  ort,
+  onProgress: ({ progress, currentSegment, totalSegments }) => {
+    // progress: 0-1 之間的數值
+    const percent = (progress * 100).toFixed(1);
+    console.log(`進度: ${percent}%`);
+    console.log(`區段: ${currentSegment}/${totalSegments}`);
+
+    // 更新進度條
+    progressBar.style.width = `${progress * 100}%`;
+
+    // 計算處理速度與預估剩餘時間
+    if (currentSegment > 0) {
+      const elapsed = (Date.now() - startTime) / 1000;
+      const processedDuration = (currentSegment / totalSegments) * audioDuration;
+      const speed = processedDuration / elapsed;
+      console.log(`處理速度: ${speed.toFixed(2)}x 即時`);
+
+      const remainingSegments = totalSegments - currentSegment;
+      const avgTimePerSegment = elapsed / currentSegment;
+      const eta = remainingSegments * avgTimePerSegment;
+      console.log(`預估剩餘時間: ${eta.toFixed(0)}秒`);
+    }
+  }
+});
+```
+
+#### onLog - 處理階段日誌回呼
+
+在各個處理階段會觸發此回呼，用於顯示詳細日誌：
+
+```javascript
+const processor = new DemucsProcessor({
+  ort,
+  onLog: (phase, message) => {
+    const timeStr = new Date().toLocaleTimeString();
+    console.log(`[${timeStr}][${phase}] ${message}`);
+
+    // 常見的 phase 值：
+    // - 'Init': 初始化
+    // - 'Segment': 區段處理
+    // - 'Inference': 模型推論
+    // - 'PostProcess': 後處理
+  }
+});
+```
+
+#### onDownloadProgress - 模型下載進度回呼
+
+在下載模型時觸發，用於顯示下載進度：
+
+```javascript
+const processor = new DemucsProcessor({
+  ort,
+  onDownloadProgress: (loaded, total) => {
+    const percent = ((loaded / total) * 100).toFixed(1);
+    const loadedMB = (loaded / 1024 / 1024).toFixed(1);
+    const totalMB = (total / 1024 / 1024).toFixed(1);
+    console.log(`下載模型: ${loadedMB}MB / ${totalMB}MB (${percent}%)`);
+
+    // 更新下載進度條
+    downloadBar.style.width = `${(loaded / total) * 100}%`;
+  }
+});
+```
+
+### 完整範例
+
+```javascript
+import * as ort from 'onnxruntime-web';
+import { DemucsProcessor, CONSTANTS } from 'demucs-web';
+
+// 配置 ONNX Runtime
+ort.env.wasm.numThreads = navigator.hardwareConcurrency || 4;
+
+// 檢測 WebGPU 支援
+let backend = 'wasm';
+if ('gpu' in navigator) {
+  try {
+    const adapter = await navigator.gpu.requestAdapter();
+    if (adapter) {
+      backend = 'webgpu';
+      ort.env.webgpu = { powerPreference: 'high-performance' };
+    }
+  } catch (e) {
+    console.log('WebGPU 不可用，使用 WASM');
+  }
+}
+
+// 建立處理器
+let startTime;
+const processor = new DemucsProcessor({
+  ort,
+  onProgress: ({ progress, currentSegment, totalSegments }) => {
+    console.log(`處理中: ${(progress * 100).toFixed(1)}% (${currentSegment}/${totalSegments})`);
+  },
+  onLog: (phase, msg) => {
+    console.log(`[${phase}] ${msg}`);
+  },
+  onDownloadProgress: (loaded, total) => {
+    console.log(`下載: ${(loaded / total * 100).toFixed(1)}%`);
+  }
+});
+
+// 載入模型
+await processor.loadModel(CONSTANTS.DEFAULT_MODEL_URL);
+
+// 載入音訊（使用 Web Audio API）
+const audioContext = new AudioContext({ sampleRate: CONSTANTS.SAMPLE_RATE });
+const response = await fetch('your-audio-file.mp3');
+const arrayBuffer = await response.arrayBuffer();
+const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+
+// 取得聲道資料
+const leftChannel = audioBuffer.getChannelData(0);
+const rightChannel = audioBuffer.numberOfChannels > 1
+  ? audioBuffer.getChannelData(1)
+  : leftChannel;  // 單聲道時複製左聲道
+
+// 開始分離
+startTime = Date.now();
+const result = await processor.separate(leftChannel, rightChannel);
+
+// 處理結果
+const totalTime = ((Date.now() - startTime) / 1000).toFixed(1);
+console.log(`處理完成，耗時 ${totalTime} 秒`);
+
+// result.drums, result.bass, result.other, result.vocals
+// 每個軌道都有 { left: Float32Array, right: Float32Array }
 ```
 
 ### 常數
