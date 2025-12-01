@@ -102,6 +102,7 @@ hf auth login
 interface DemucsProcessorOptions {
   ort: typeof import('onnxruntime-web');
   modelPath?: string;
+  sessionOptions?: ort.InferenceSession.SessionOptions;
   onProgress?: (info: ProgressInfo) => void;
   onLog?: (phase: string, message: string) => void;
   onDownloadProgress?: (loaded: number, total: number) => void;
@@ -196,6 +197,48 @@ const processor = new DemucsProcessor({
 
     // 更新下載進度條
     downloadBar.style.width = `${(loaded / total) * 100}%`;
+  }
+});
+```
+
+#### sessionOptions - ONNX Runtime Session 設定
+
+可傳入 ONNX Runtime 的 `InferenceSession.SessionOptions` 來自訂模型載入行為。這對於在行動裝置或記憶體受限的環境中降低記憶體使用量特別有用。
+
+```javascript
+const processor = new DemucsProcessor({
+  ort,
+  sessionOptions: {
+    // 停用 CPU 記憶體競技場，減少記憶體預分配
+    enableCpuMemArena: false,
+    // 停用記憶體模式優化，減少記憶體使用
+    enableMemPattern: false,
+    // 覆蓋預設的執行提供者（預設為 ['webgpu', 'wasm']）
+    // executionProviders: ['wasm'],
+    // 覆蓋圖形優化等級（預設為 'basic'）
+    // graphOptimizationLevel: 'disabled',
+  }
+});
+```
+
+**常用的 sessionOptions：**
+
+| 選項 | 類型 | 預設值 | 說明 |
+|------|------|--------|------|
+| `enableCpuMemArena` | boolean | true | CPU 記憶體競技場。設為 false 可減少記憶體使用 |
+| `enableMemPattern` | boolean | true | 記憶體模式優化。設為 false 可減少記憶體峰值 |
+| `executionProviders` | string[] | ['webgpu', 'wasm'] | 執行提供者優先順序 |
+| `graphOptimizationLevel` | string | 'basic' | 圖形優化等級：'disabled', 'basic', 'extended', 'all' |
+
+**行動裝置建議設定：**
+
+```javascript
+// 針對 iOS/Android 行動裝置的低記憶體設定
+const processor = new DemucsProcessor({
+  ort,
+  sessionOptions: {
+    enableCpuMemArena: false,
+    enableMemPattern: false,
   }
 });
 ```

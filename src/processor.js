@@ -142,6 +142,7 @@ export class DemucsProcessor {
     this.ort = options.ort || null;
     this.session = null;
     this.modelPath = options.modelPath || './htdemucs_embedded.onnx';
+    this.sessionOptions = options.sessionOptions || {};
     this.onProgress = options.onProgress || (() => {});
     this.onLog = options.onLog || (() => {});
     this.onDownloadProgress = options.onDownloadProgress || (() => {});
@@ -190,9 +191,14 @@ export class DemucsProcessor {
       }
     }
 
-    this.session = await this.ort.InferenceSession.create(modelBuffer, {
+    const defaultSessionOptions = {
       executionProviders: ['webgpu', 'wasm'],
       graphOptimizationLevel: 'basic'
+    };
+
+    this.session = await this.ort.InferenceSession.create(modelBuffer, {
+      ...defaultSessionOptions,
+      ...this.sessionOptions
     });
 
     this.onLog('model', 'Model loaded successfully');
